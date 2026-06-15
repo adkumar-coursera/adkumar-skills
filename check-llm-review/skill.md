@@ -1,9 +1,9 @@
 ---
-name: check-claude-review
-description: Fact-check an automated Claude PR review by exploring the actual codebase, wiki, and project context. Use when the user asks to check, verify, respond to, or evaluate a Claude code review comment on a PR.
+name: check-llm-review
+description: Fact-check an automated LLM/AI PR review by exploring the actual codebase, docs, and project context. Use when the user asks to check, verify, respond to, or evaluate an automated code review comment on a PR.
 ---
 
-# Check Claude PR Review
+# Check Automated LLM PR Review
 
 ## What this skill does
 
@@ -96,7 +96,7 @@ For each item, classify it:
 Present findings to the user:
 
 ```markdown
-# Claude Review Check: PR #NNN
+# LLM Review Check: PR #NNN
 
 ## Context
 

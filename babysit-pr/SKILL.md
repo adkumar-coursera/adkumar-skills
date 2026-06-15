@@ -1,6 +1,6 @@
 ---
 name: babysit-pr
-description: Watch a PR through the review/merge readiness cycle. Each cycle pulls main, refreshes the Claude review, waits for checks to go green, evaluates the latest Claude review via the check-claude-review skill, and (in Java repos) runs sonar-review against the latest commit. Loops until all exit conditions are met. Use when the user asks to babysit, watch, monitor, tend, or shepherd a PR until it is ready to merge.
+description: Watch a PR through the review/merge readiness cycle. Each cycle pulls main, refreshes the automated review, waits for checks to go green, evaluates the latest review via the check-llm-review skill, and (in Java repos) runs sonar-review against the latest commit. Loops until all exit conditions are met. Use when the user asks to babysit, watch, monitor, tend, or shepherd a PR until it is ready to merge.
 ---
 
 # Babysit PR Until Solid
@@ -10,7 +10,7 @@ description: Watch a PR through the review/merge readiness cycle. Each cycle pul
 When the user asks to babysit, watch, monitor, or shepherd a PR through the final review/merge cycle. The intent is "keep this PR healthy until it's a clean merge candidate" — not just "check it once."
 
 This skill defers to two siblings, so updates flow through them automatically:
-- **`check-claude-review`** — read it before each Claude evaluation so any change there is picked up here.
+- **`check-llm-review`** — read it before each review evaluation so any change there is picked up here.
 - **`sonar-review`** — used to fetch SonarCloud issues for the latest commit, when the repo runs SonarCloud.
 
 ## Step 0 — Identify the PR and the expected branch
@@ -27,9 +27,9 @@ gh pr view <number> --json number,headRefName,baseRefName,url,headRepository,aut
 - `headRefName` → `$EXPECTED_BRANCH`: source of truth for which branch the local repo must be on for any read/write.
 - `author.login` → `$PR_AUTHOR`: used to filter out the PR author's own comments when scanning for human reviewer input.
 
-## Step 1 — Read the `check-claude-review` skill once
+## Step 1 — Read the `check-llm-review` skill once
 
-Before starting the loop, read the `check-claude-review` skill and follow its phases when you evaluate any automated review during the cycle. Do not duplicate its logic here — defer to it.
+Before starting the loop, read the `check-llm-review` skill and follow its phases when you evaluate any automated review during the cycle. Do not duplicate its logic here — defer to it.
 
 ## Step 2 — The cycle (repeat until exit conditions hold)
 
@@ -41,15 +41,15 @@ Use `TaskCreate` to record the phases of the **current iteration** at the start.
 
 1. Verify branch + check for human input
 2. Pull `origin/main` and resolve any merge conflicts
-3. Refresh Claude review (rerun job)
+3. Refresh automated review (rerun job)
 4. Wait for checks to go green
-5. Evaluate Claude review (🔴 + 🟡)
+5. Evaluate automated review (🔴 + 🟡)
 6. Run sonar-review and address new issues (Java repos only)
 7. Decide exit / loop
 
 Mark each phase `in_progress` when you start it and `completed` when it finishes cleanly.
 
-**Going back a phase (very important).** Any time the cycle effectively rewinds — you applied a fix and pushed (which restarts checks), main was repulled, you switched branches, you re-triggered the Claude job, you discovered a sonar issue that needs a fix — **un-complete every downstream task** by setting it back to `pending` via `TaskUpdate`. The state of the world after a push is "we don't know if checks pass, we don't know what the new Claude review says, we don't know what sonar will say" — the tasks must reflect that. Tasks that are *upstream* of the rewind stay completed if they were genuinely done.
+**Going back a phase (very important).** Any time the cycle effectively rewinds — you applied a fix and pushed (which restarts checks), main was repulled, you switched branches, you re-triggered the review job, you discovered a sonar issue that needs a fix — **un-complete every downstream task** by setting it back to `pending` via `TaskUpdate`. The state of the world after a push is "we don't know if checks pass, we don't know what the new review says, we don't know what sonar will say" — the tasks must reflect that. Tasks that are *upstream* of the rewind stay completed if they were genuinely done.
 
 If a cycle iteration completes the full chain without rewinding, mark all tasks completed and the loop exits via Step 2f.
 
@@ -131,7 +131,7 @@ After resolving, `git add` the files and `git commit --no-edit` (uses the defaul
 
 **Only stop the loop and surface to the user if the conflict genuinely needs human judgment** — e.g. both sides edited the same logic in semantically incompatible ways, or the conflict touches code you don't have context for and can't reason about safely from `git log` and surrounding files alone.
 
-### 2b. Refresh the automated Claude review
+### 2b. Refresh the automated review
 
 The automated PR review bot re-runs automatically on each new commit, but if this cycle iteration started without a new commit, manually re-trigger its workflow so the latest review reflects current state:
 
@@ -155,9 +155,9 @@ Poll every ~5 minutes (`sleep 300`-style background command, or chain a short wa
 
 If any check finishes with `FAILURE` or `CANCELLED`: investigate the failing job's logs (`gh run view <runId> --log-failed`). If the fix is mechanical (e.g. missing test update for a new constructor param), apply it, commit, push, and the cycle restarts naturally. If it's not obvious, surface to the user.
 
-### 2d. Evaluate the Claude review via `check-claude-review`
+### 2d. Evaluate the automated review via `check-llm-review`
 
-Fetch the bot's PR comment and run it through the **`check-claude-review`** skill's phases (don't re-implement). Classify items, gather evidence, decide what to fix vs. rebut.
+Fetch the bot's PR comment and run it through the **`check-llm-review`** skill's phases (don't re-implement). Classify items, gather evidence, decide what to fix vs. rebut.
 
 **Severity discipline:**
 - **🔴 (Must Fix):** required to fix or rebut before the loop can exit. These gate completion.
@@ -194,7 +194,7 @@ Continue looping if any of these is still false. Exit only when **all** are true
 
 - ✅ `git merge origin/main` is clean (no conflicts).
 - ✅ All check runs on the latest commit are `SUCCESS` or `SKIPPED`.
-- ✅ Latest Claude review (refreshed this cycle) has no 🔴 items, **or** every 🔴 item has been either fixed or rebutted in a PR comment. (🟡 items should also be touched — fix or brief response — but their existence is *not* a blocker for exit. 🟢 ignored.)
+- ✅ Latest automated review (refreshed this cycle) has no 🔴 items, **or** every 🔴 item has been either fixed or rebutted in a PR comment. (🟡 items should also be touched — fix or brief response — but their existence is *not* a blocker for exit. 🟢 ignored.)
 - ✅ If Java repo: SonarCloud coverage ≥ 80% **and** every new issue is fixed-or-addressed.
 
 When exiting, post a brief final status message to the user with:

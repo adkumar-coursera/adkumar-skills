@@ -55,4 +55,12 @@ Call the chosen Sonar tool with the resolved project key, the PR number (or omit
 
 ## Step 4 — Output
 
-Present the results as a readable markdown table. Do not editorialize or suggest fixes — that's the user's job after seeing the results. If the result is empty, say so clearly and confirm the filters and PR number used.
+Present the results as a readable markdown table. Keep the table itself neutral — don't editorialize on each row. If the result is empty, say so clearly and confirm the filters and PR number used.
+
+## Step 5 — Offer to fix
+
+After presenting the results (and only if there are issues), ask the user whether you should fix them — e.g.:
+
+> Want me to fix these? I can address all of them, or you can tell me which ones (by number/rule) to take.
+
+Wait for the user's answer before changing any code. If they decline, stop here. If they accept, fix the issues they selected, keeping changes surgical and scoped to what Sonar flagged.
